@@ -1,5 +1,6 @@
 from keras.src.models import load_model
 from keras_facenet import FaceNet
+import numpy as np
 import joblib
 import cv2
 
@@ -14,10 +15,27 @@ class FaceDetection:
     def load_image(self, image_path):
         self.image = cv2.imread(image_path)
 
-    def crop_face(self):
-        cropped_face = ...
+    def preprocess_image(self):
+        image_resized = cv2.resize(self.image, (224, 224))
+        image_normalized = image_resized / 255.0
+        
+        return np.expand_dims(image_normalized, axis=0)
 
-        return cropped_face
+    def crop_face(self) -> cv2.MatLike:
+        prediction = self.model.predict(self.preprocess_image())[0]
+    
+        x, y, width, height = prediction
+        rows, cols, _ = self.image.shape
+
+        x = int(x * cols)
+        y = int(y * rows)
+
+        width = int(width * cols)
+        height = int(height * rows)
+        
+        cropped_pet_face = self.image[y : y + height, x : x + width]
+
+        return cropped_pet_face
 
 
 class FeatureExtraction:
