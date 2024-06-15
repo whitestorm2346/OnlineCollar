@@ -1,59 +1,33 @@
 import numpy as np
-import cv2
-from sklearn.neighbors import KNeighborsClassifier
-from keras_facenet import FaceNet
+from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report
 import joblib
-import os
 
-# 初始化 FaceNet 模型
-embedder = FaceNet()
+# 假設你已經提取了很多特徵向量，每個向量代表一張圖像
+# 這些向量和對應的標籤用於訓練分類模型
+features = np.random.rand(100, 128)  # 模擬的特徵向量數據 (100個樣本, 每個樣本128維)
+labels = np.random.randint(0, 10, 100)  # 模擬的標籤數據 (10個類別)
 
-# 假設我們有訓練數據的文件夾和對應的標籤
-image_folder = 'path_to_images'
-labels_file = 'path_to_labels.txt'
+X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
 
-# 加載圖像和標籤
-def load_data(image_folder, labels_file):
-    images = []
-    labels = []
-    with open(labels_file, 'r') as file:
-        for line in file:
-            parts = line.strip().split()
-            image_path = os.path.join(image_folder, parts[0])
-            label = parts[1]
-            image = cv2.imread(image_path)
-            image = cv2.resize(image, (160, 160))
-            images.append(image)
-            labels.append(label)
-    return np.array(images), np.array(labels)
+model = SVC()
 
-# 提取嵌入向量
-def extract_embeddings(images):
-    embeddings = embedder.embeddings(images)
-    return embeddings
+param_grid = {
+    'C': [0.1, 1, 10, 100], 
+    'kernel': ['linear', 'rbf', 'poly', 'sigmoid'], 
+    'gamma': ['scale', 'auto'],  
+    'degree': [2, 3, 4] 
+}
 
-# 加載數據
-images, labels = load_data(image_folder, labels_file)
+grid_search = GridSearchCV(model, param_grid, cv=5, scoring='accuracy')
+grid_search.fit(X_train, y_train)
+print("最佳參數：", grid_search.best_params_)
 
-# 提取特徵
-embeddings = extract_embeddings(images)
+best_model = grid_search.best_estimator_
+y_pred = best_model.predict(X_test)
 
-# 訓練 k-NN 模型
-knn = KNeighborsClassifier(n_neighbors=5, metric='euclidean')
-knn.fit(embeddings, labels)
+print("分類報告：")
+print(classification_report(y_test, y_pred))
 
-# 保存 k-NN 模型
-joblib.dump(knn, '../models/knn_face_recognition_model.pkl')
-
-# 測試模型
-def recognize_face(image_path, knn, embedder):
-    image = cv2.imread(image_path)
-    image = cv2.resize(image, (160, 160))
-    embedding = embedder.embeddings(np.array([image]))[0]
-    label = knn.predict([embedding])
-    return label
-
-# 測試示例
-test_image_path = 'path_to_test_image.jpg'
-recognized_label = recognize_face(test_image_path, knn, embedder)
-print(f'Recognized Label: {recognized_label[0]}')
+joblib.dump(best_model, '../models/face_recognition_model.pkl')

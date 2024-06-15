@@ -1,47 +1,52 @@
-import tensorflow as tf
-from keras_facenet import FaceNet
 import numpy as np
 import cv2
+import os
+from keras.src.models import Sequential
+from keras.src.layers import Conv2D, MaxPooling2D, Flatten, Dense, GlobalAveragePooling2D
+from sklearn.model_selection import train_test_split
 
-# 初始化 FaceNet 模型
-embedder = FaceNet()
 
-# 自定義數據生成器（如果有需要微調的話）
-def data_generator(image_folder, batch_size):
-    # 實現一個生成器，用於從文件中加載數據
-    # 這裡僅為示例，具體實現需根據數據集格式進行調整
-    while True:
-        images = []
-        for i in range(batch_size):
-            # 加載圖像
-            image_path = ...  # 獲取圖像路徑
-            image = cv2.imread(image_path)
-            image = cv2.resize(image, (160, 160))  # 假設 FaceNet 需要160x160的輸入
-            images.append(image)
-        yield np.array(images)
+def create_feature_extraction_model(input_shape=(224, 224, 3), embedding_size=128):
+    model = Sequential([
+        Conv2D(32, (3, 3), activation='relu', input_shape=input_shape),
+        MaxPooling2D(pool_size=(2, 2)),
+        
+        Conv2D(64, (3, 3), activation='relu'),
+        MaxPooling2D(pool_size=(2, 2)),
+        
+        Conv2D(128, (3, 3), activation='relu'),
+        GlobalAveragePooling2D(),  # 使用全局平均池化
+        
+        Dense(embedding_size, activation='relu')  # 最終輸出特徵向量
+    ])
+    
+    model.compile(optimizer='adam', loss='mean_squared_error')
 
-# 假設你有一個圖像文件夾和標註文件（如果需要微調）
-train_gen = data_generator('path_to_images', batch_size=32)
+    return model
 
-# 如果需要微調模型，這裡展示了如何進行訓練
-# FaceNet 是一個已經訓練好的模型，通常不需要重新訓練
-# 以下代碼僅供參考，如果需要進行微調
+def load_and_preprocess_images(image_folder, image_size=(224, 224)):
+    images = []
+    labels = []  # 這裡的 labels 是狗的不同品種或其他分類標籤
 
-# 訓練模型（這裡只是示例，通常不需要重新訓練 FaceNet）
-# embedder.model.fit(train_gen, steps_per_epoch=100, epochs=10)
+    for image_name in os.listdir(image_folder):
+        image_path = os.path.join(image_folder, image_name)
+        image = cv2.imread(image_path)
+        image = cv2.resize(image, image_size)
+        image = image / 255.0  
+        images.append(image)
+        
+        label = int(image_name.split('_')[0].replace('dog', ''))
+        labels.append(label)
+    
+    return np.array(images), np.array(labels)
 
-# 保存模型
-# 由於 keras_facenet 封裝的模型不直接支持 .save 方法，我們保存模型權重
-embedder.model.save_weights('../models/facenet_weights.h5')
 
-# 如果需要在別處加載模型
-# embedder.model.load_weights('facenet_weights.h5')
+image_folder = 'path_to_dog_images'
 
-# 這裡是一個簡單的測試示例，用來展示如何提取面部嵌入向量
-test_image = cv2.imread('path_to_test_image.jpg')
-test_image = cv2.resize(test_image, (160, 160))
-test_image = np.expand_dims(test_image, axis=0)
+X, y = load_and_preprocess_images(image_folder)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# 提取嵌入向量
-embedding = embedder.embeddings(test_image)[0]
-print(embedding)
+model = create_feature_extraction_model(embedding_size=128)
+model.fit(X_train, y_train, epochs=10, batch_size=32, validation_data=(X_test, y_test))
+
+model.save('../models/feature_extraction_model.h5')

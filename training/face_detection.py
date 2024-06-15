@@ -1,7 +1,5 @@
-import tensorflow as tf
 from keras.src.models import Sequential
 from keras.src.layers import Conv2D, MaxPooling2D, Flatten, Dense
-from keras.api.preprocessing.image import ImageDataGenerator
 import numpy as np
 import cv2
 import os
